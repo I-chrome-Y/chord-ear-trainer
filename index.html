@@ -104,7 +104,7 @@
   .wk.ng{background:var(--clay);}
   .bk.ng{background:var(--clay);border-color:#6b2f2f;}
   .wk.miss,.bk.miss{box-shadow:inset 0 0 0 3px var(--brass);}
-  .piano.frozen .wk,.piano.frozen .bk{cursor:default;}
+  .piano.frozen .wk,.piano.frozen .bk{cursor:pointer;}
   .wk:focus-visible,.bk:focus-visible{outline:2px solid var(--brass);outline-offset:-2px;}
 
   .readout{
@@ -234,7 +234,7 @@
   <div class="piano-card">
     <div class="piano" id="piano" role="group" aria-label="鍵盤"></div>
   </div>
-  <p class="readout" id="readout">選択中: <b>なし</b></p>
+  <p class="readout" id="readout">鍵盤を押すと音を確認できます</p>
 
   <div class="actions">
     <button class="btn btn-primary" id="mainBtn">スタート ▶</button>
@@ -276,6 +276,14 @@
           <span class="hint">正答率に合わせて音域と復習配分を調整します</span>
         </label>
         <div class="switch" id="adaptSwitch" role="switch" tabindex="0" aria-checked="true" aria-labelledby="adaptLabel"></div>
+      </div>
+
+      <div class="opt-row">
+        <label id="invLabel">
+          転回形を含める
+          <span class="hint">実際の曲では和音は基本形とは限りません</span>
+        </label>
+        <div class="switch" id="invSwitch" role="switch" tabindex="0" aria-checked="false" aria-labelledby="invLabel"></div>
       </div>
 
       <div class="opt-row">
@@ -339,7 +347,8 @@
   const KB_LOW = 60, KB_HIGH = 71;
   const BLACK_PC = new Set([1,3,6,8,10]);
   const SET_SIZE = 10;
-  const STORE_KEY = 'earTrainer.v2';
+  const STORE_KEY = 'earTrainer';
+  const SCHEMA = 3;
 
   /* ══ DOM refs ══════════════════════════ */
   const $ = id => document.getElementById(id);
@@ -348,7 +357,7 @@
         readout=$('readout'), mainBtn=$('mainBtn'), clearBtn=$('clearBtn'),
         replayBtn=$('replayBtn'), revealBtn=$('revealBtn'), chipsEl=$('chips'),
         modeSummary=$('modeSummary'), labelSwitch=$('labelSwitch'),
-        adaptSwitch=$('adaptSwitch'), statScore=$('statScore'),
+        adaptSwitch=$('adaptSwitch'), invSwitch=$('invSwitch'), statScore=$('statScore'),
         statStreak=$('statStreak'), statDays=$('statDays'), pipsEl=$('pips'),
         sessionLabel=$('sessionLabel'), levelLabel=$('levelLabel'),
         masteryEl=$('mastery'), masterySummary=$('masterySummary'),
@@ -358,19 +367,25 @@
   const todayKey = () => new Date().toISOString().slice(0,10);
 
   const defaults = {
-    modes:['major'], showLabels:true, adaptive:true,
+    v:SCHEMA,
+    modes:['single','major','minor'], showLabels:true, adaptive:true,
+    inversions:false,
     level:3, mastery:{}, dayStreak:0, lastDay:null,
-    bestSet:0, setNo:1, lifetime:{played:0,correct:0}
+    bestSet:0, review:[]
   };
   let S = load();
 
   function load(){
     try{
-      const raw = localStorage.getItem(STORE_KEY);
+      const raw = localStorage.getItem(STORE_KEY) || localStorage.getItem('earTrainer.v2');
       if(!raw) return structuredClone(defaults);
-      const o = Object.assign(structuredClone(defaults), JSON.parse(raw));
+      const prev = JSON.parse(raw);
+      const o = Object.assign(structuredClone(defaults), prev);
       o.modes = o.modes.filter(id => MODE_BY_ID[id]);
-      if(!o.modes.length) o.modes = ['major'];
+      if(!o.modes.length) o.modes = defaults.modes.slice();
+      if(!Array.isArray(o.review)) o.review = [];
+      if(!prev.v && o.modes.length === 1) o.modes = defaults.modes.slice();
+      o.v = SCHEMA;
       return o;
     }catch(_){ return structuredClone(defaults); }
   }
@@ -384,7 +399,9 @@
     if(S.lastDay === t) return;
     if(S.lastDay){
       const gap = Math.round((Date.parse(t) - Date.parse(S.lastDay)) / 86400000);
-      if(gap > 2) S.dayStreak = 0;      // 2日以上空いたらリセット（1日の猶予）
+      if(gap > 2) S.dayStreak = 0;
+      // 平均回帰: 前日の落ち込んだ難易度のまま再開させない
+      if(S.level < 3) S.level = Math.min(3, S.level + 1);
     }
   })();
 
@@ -403,9 +420,10 @@
   let phase = 'idle';
   let question = null;
   let played = 0, correct = 0, streak = 0;
-  let setResults = [];                  // 'ok' | 'ng' per question in current set
-  let recent = [];                      // last 12 booleans, for adaptive difficulty
-  const reviewQueue = [];               // spaced repetition: {modeId, root}
+  let setNo = 1;
+  let setResults = [];
+  let recent = [];
+  const reviewQueue = S.review;         // 復習キューは日をまたいで保持
   const selected = new Set();
   const keyEls = new Map();
 
@@ -493,8 +511,8 @@
   });
 
   function pressKey(midi){
-    if(phase === 'resolved') return;
     playSingle(midi);
+    if(phase !== 'answering') return;
     selected.has(midi) ? selected.delete(midi) : selected.add(midi);
     paintKeys(); updateReadout(); syncButtons();
   }
@@ -509,10 +527,11 @@
         else if(marks.right.has(pc)) el.classList.add('miss');
       } else if(selected.has(midi)) el.classList.add('on');
     });
-    pianoEl.classList.toggle('frozen', phase === 'resolved');
+    pianoEl.classList.toggle('frozen', phase !== 'answering');
   }
 
   function updateReadout(){
+    if(phase === 'idle'){ readout.innerHTML = '鍵盤を押すと音を確認できます'; return; }
     if(!selected.size){ readout.innerHTML = '選択中: <b>なし</b>'; return; }
     const names = [...selected].sort((a,b)=>a-b).map(noteName);
     readout.innerHTML = '選択中: <b>' + names.join('  ') + '</b>';
@@ -544,14 +563,17 @@
                     : (i === setResults.length && phase === 'answering' ? ' now' : ''));
       pipsEl.appendChild(d);
     }
-    sessionLabel.textContent = 'セット ' + S.setNo + ' ／ ' +
+    sessionLabel.textContent = 'セット ' + setNo + ' ／ ' +
       Math.min(setResults.length + (phase==='answering'?1:0), SET_SIZE) + '/' + SET_SIZE + '問';
     levelLabel.textContent = '難易度 ' + S.level;
   }
 
-  const chordLabel = q => q.mode.iv.length === 1
-    ? NOTES[q.root] + '（単音）'
-    : NOTES[q.root] + (q.mode.id === 'major' ? '' : q.mode.sym);
+  const INV_NAME = ['', '第1転回', '第2転回', '第3転回'];
+  const chordLabel = q => {
+    if(q.mode.iv.length === 1) return NOTES[q.root] + '（単音）';
+    const nm = NOTES[q.root] + (q.mode.id === 'major' ? '' : q.mode.sym);
+    return q.inv ? nm + '（' + INV_NAME[q.inv] + '）' : nm;
+  };
   const spell = q => q.midis.map(fullName).join(' – ');
 
   /* ══ Mastery ═══════════════════════════ */
@@ -620,19 +642,56 @@
     return opts[Math.floor(Math.random() * opts.length)];
   }
 
-  // 間違えた問題を優先的に再出題（テスト効果 / 間隔反復）
+  // 転回形: 実際の音楽で和音は基本形で鳴るとは限らない
+  function voice(iv, inv){
+    if(!inv) return iv.slice();
+    const a = iv.slice();
+    for(let i = 0; i < inv; i++) a.push(a.shift() + 12);
+    const base = a[0];
+    return a.map(x => x - base);
+  }
+
+  // Leitner式: 間違えた課題は間隔を空けて再出題し、正解するたび間隔を伸ばす
+  let sinceStart = 0;
+  function dueReview(){
+    for(let i = 0; i < reviewQueue.length; i++){
+      const t = reviewQueue[i];
+      if(t.due <= sinceStart && active.has(t.modeId)) return i;
+    }
+    return -1;
+  }
+  function scheduleReview(key, ok){
+    const i = reviewQueue.findIndex(t => t.key === key);
+    if(ok){
+      if(i < 0) return;
+      const t = reviewQueue[i];
+      t.box = (t.box || 1) + 1;
+      if(t.box > 4){ reviewQueue.splice(i, 1); }        // 4回連続で正解＝卒業
+      else t.due = sinceStart + [0,2,5,9,14][t.box];
+    } else {
+      if(i >= 0){
+        reviewQueue[i].box = 1;
+        reviewQueue[i].due = sinceStart + 2;
+      } else {
+        const [modeId, root, inv] = key.split(':');
+        reviewQueue.push({ key, modeId, root:+root, inv:+inv, box:1, due:sinceStart + 2 });
+        if(reviewQueue.length > 20) reviewQueue.shift();
+      }
+    }
+    S.review = reviewQueue;
+  }
+
   function pickTask(){
     const pool = MODES.filter(m => active.has(m.id));
     if(!pool.length) return null;
 
-    if(S.adaptive && reviewQueue.length){
-      const idx = reviewQueue.findIndex(t => active.has(t.modeId));
-      if(idx >= 0 && Math.random() < 0.4){
-        const t = reviewQueue.splice(idx,1)[0];
-        return { mode: MODE_BY_ID[t.modeId], root: t.root, review: true };
+    if(S.adaptive){
+      const idx = dueReview();
+      if(idx >= 0){
+        const t = reviewQueue[idx];
+        return { mode: MODE_BY_ID[t.modeId], root: t.root, inv: t.inv, review: true };
       }
     }
-    // 苦手なタイプを重み付けで選ぶ
     let mode;
     if(S.adaptive){
       const weights = pool.map(m => {
@@ -646,15 +705,28 @@
     } else {
       mode = pool[Math.floor(Math.random()*pool.length)];
     }
-    return { mode, root: Math.floor(Math.random()*12), review:false };
+    const maxInv = (S.inversions && mode.iv.length > 1) ? mode.iv.length - 1 : 0;
+    return {
+      mode,
+      root: Math.floor(Math.random()*12),
+      inv: maxInv ? Math.floor(Math.random() * (maxInv + 1)) : 0,
+      review: false
+    };
   }
 
   function nextRound(){
     if(setResults.length >= SET_SIZE) startNewSet();
     const task = pickTask();
     if(!task) return;
-    const base = rootMidiFor(task.root, Math.max(...task.mode.iv));
-    question = { mode: task.mode, root: task.root, midis: task.mode.iv.map(iv => base + iv), review: task.review };
+    const iv = voice(task.mode.iv, task.inv || 0);
+    const shift = (task.inv ? task.mode.iv[task.inv] % 12 : 0);
+    const bassPc = (task.root + shift) % 12;
+    const base = rootMidiFor(bassPc, Math.max(...iv));
+    question = {
+      mode: task.mode, root: task.root, inv: task.inv || 0,
+      midis: iv.map(x => base + x), review: task.review,
+      key: task.mode.id + ':' + task.root + ':' + (task.inv || 0)
+    };
 
     phase = 'answering';
     selected.clear();
@@ -667,25 +739,22 @@
   }
 
   function startNewSet(){
-    S.setNo++; setResults = []; save();
+    setNo++; setResults = []; save();
   }
 
   function replay(){ if(question) playChord(question.midis); }
 
   function finishRound(isRight, revealed){
     played++;
-    S.lifetime.played++;
-    if(isRight){ correct++; streak++; S.lifetime.correct++; }
+    if(isRight){ correct++; streak++; }
     else streak = 0;
     markToday();
 
     recordMastery(question.mode.id, isRight);
+    sinceStart++;
     recent.push(isRight);
     if(recent.length > 12) recent.shift();
-    if(!isRight){
-      reviewQueue.push({ modeId: question.mode.id, root: question.root });
-      if(reviewQueue.length > 8) reviewQueue.shift();
-    }
+    scheduleReview(question.key, isRight);
     setResults.push(isRight ? 'ok' : 'ng');
     adapt();
 
@@ -710,9 +779,9 @@
   function setEndMessage(){
     if(setResults.length < SET_SIZE) return null;
     const ok = setResults.filter(r => r === 'ok').length;
-    if(ok === SET_SIZE) return 'セット ' + S.setNo + ' 完了 — ' + ok + '/' + SET_SIZE + ' 満点';
-    if(ok >= (S.bestSet||0)) return 'セット ' + S.setNo + ' 完了 — ' + ok + '/' + SET_SIZE + '（自己ベスト）';
-    return 'セット ' + S.setNo + ' 完了 — ' + ok + '/' + SET_SIZE + '（自己ベスト ' + S.bestSet + '）';
+    if(ok === SET_SIZE) return 'セット ' + setNo + ' 完了 — ' + ok + '/' + SET_SIZE + ' 満点';
+    if(ok >= (S.bestSet||0)) return 'セット ' + setNo + ' 完了 — ' + ok + '/' + SET_SIZE + '（自己ベスト）';
+    return 'セット ' + setNo + ' 完了 — ' + ok + '/' + SET_SIZE + '（自己ベスト ' + S.bestSet + '）';
   }
 
   function submit(){
@@ -757,7 +826,7 @@
       mainBtn.textContent = 'スタート ▶';
       mainBtn.disabled = false;
       replayBtn.disabled = true; revealBtn.disabled = true;
-      clearBtn.disabled = !selected.size;
+      clearBtn.disabled = true;
     } else if(phase === 'answering'){
       mainBtn.textContent = '回答する ✓';
       mainBtn.disabled = !selected.size;
@@ -812,6 +881,7 @@
     pianoEl.classList.toggle('hide-labels', !S.showLabels);
   }
   function applyAdapt(){ adaptSwitch.setAttribute('aria-checked', String(S.adaptive)); }
+  function applyInv(){ invSwitch.setAttribute('aria-checked', String(S.inversions)); }
 
   function bindSwitch(el, get, set){
     const t = () => { set(!get()); save(); };
@@ -822,13 +892,15 @@
   }
   bindSwitch(labelSwitch, () => S.showLabels, v => { S.showLabels = v; applyLabels(); });
   bindSwitch(adaptSwitch, () => S.adaptive,  v => { S.adaptive = v; applyAdapt(); });
+  bindSwitch(invSwitch,   () => S.inversions, v => { S.inversions = v; applyInv(); });
 
   resetBtn.addEventListener('click', () => {
     if(!confirm('習熟度と連続日数をすべて消去します。よろしいですか？')) return;
-    const keep = { modes:[...active], showLabels:S.showLabels, adaptive:S.adaptive };
-    S = Object.assign(structuredClone(defaults), keep);
+    S.mastery = {}; S.dayStreak = 0; S.lastDay = null;
+    S.bestSet = 0; S.level = 3;
+    reviewQueue.length = 0; S.review = reviewQueue;
     played = correct = streak = 0; setResults = []; recent = [];
-    reviewQueue.length = 0;
+    setNo = 1; sinceStart = 0;
     save(); renderStats(); renderMastery(); renderPips();
   });
 
@@ -841,7 +913,7 @@
   document.addEventListener('keydown', e => {
     const t = e.target;
     if(t && (t.tagName === 'BUTTON' || t.classList.contains('wk') ||
-             t.classList.contains('bk') || t === labelSwitch || t === adaptSwitch ||
+             t.classList.contains('bk') || t === labelSwitch || t === adaptSwitch || t === invSwitch ||
              t.tagName === 'SUMMARY')) return;
     if(e.key === ' '){ e.preventDefault(); if(!replayBtn.disabled) replay(); }
     else if(e.key === 'Enter'){ e.preventDefault(); if(!mainBtn.disabled) mainBtn.click(); }
@@ -849,7 +921,7 @@
   });
 
   /* ══ Init ══════════════════════════════ */
-  applyLabels(); applyAdapt(); renderSummary();
+  applyLabels(); applyAdapt(); applyInv(); renderSummary();
   renderStats(); renderMastery(); renderPips();
   updateReadout(); paintKeys(); syncButtons();
 })();
