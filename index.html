@@ -369,7 +369,7 @@
   <section class="panel">
     <p class="panel-title">操作</p>
     <div class="controls">
-      <button class="btn btn-primary" id="newChordBtn">問題を再生してスタート ▶</button>
+      <button class="btn btn-primary" id="newChordBtn">スタート ▶</button>
       <button class="btn btn-secondary" id="replayBtn">もう一度聴く ↺</button>
       <button class="btn btn-secondary" id="checkBtn" disabled>回答する ✓</button>
       <button class="btn btn-ghost" id="revealBtn" disabled>答えを見る</button>
@@ -616,15 +616,37 @@
     revealBtn.disabled = false;
     newChordBtn.disabled = true;
     playChordMidis(midis);
+    syncButtons();
   }
 
   function resolveRound(){
     roundResolved = true;
     setLocked(true);
-    checkBtn.disabled = true;
-    revealBtn.disabled = true;
+    syncButtons();
     newChordBtn.disabled = false;
     newChordBtn.textContent = '次の問題へ ▶';
+  }
+
+  function syncButtons(){
+    if(!currentChord){
+      newChordBtn.disabled = false;
+      checkBtn.disabled = true;
+      replayBtn.disabled = true;
+      revealBtn.disabled = true;
+      return;
+    }
+    if(roundResolved){
+      newChordBtn.disabled = false;
+      checkBtn.disabled = true;
+      replayBtn.disabled = false;
+      revealBtn.disabled = true;
+      return;
+    }
+    const selectedCount = Object.values(keyEls).some(el => el.classList.contains('selected'));
+    newChordBtn.disabled = true;
+    checkBtn.disabled = !selectedCount;
+    replayBtn.disabled = false;
+    revealBtn.disabled = false;
   }
 
   function replayChord(){
@@ -642,6 +664,7 @@
     const selectedMidis = Object.values(keyEls)
       .filter(el=>el.classList.contains('selected'))
       .map(el=>+el.dataset.midi);
+    if(selectedMidis.length === 0) return;
     const selectedPCs = new Set(selectedMidis.map(m => m % 12));
     const correctPCs = new Set(currentChord.midis.map(m => m % 12));
 
@@ -707,6 +730,7 @@
       el.classList.toggle('selected');
       playNote(+el.dataset.midi, ensureCtx().currentTime + 0.002, 0.8);
       updateSelectedReadout();
+      syncButtons();
     }
     el.addEventListener('pointerdown', (e)=>{
       e.preventDefault();
@@ -726,6 +750,7 @@
   revealBtn.addEventListener('click', revealAnswer);
 
   updateScoreUI();
+  syncButtons();
 })();
 </script>
 </body>
