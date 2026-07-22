@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>聴音トレーニング — Ear Trainer</title>
+<title>音あてっこ</title>
 <style>
   :root{
     --bg:#151E27; --surface:#1D2833; --surface-2:#243140; --edge:#2E3E4F;
@@ -12,10 +12,11 @@
     --sage:#6FA86B; --sage-dim:rgba(111,168,107,.18);
     --clay:#C85C5C; --clay-dim:rgba(200,92,92,.18);
     --ivory:#F4EFE3; --wood:#201915; --ebony:#2B2320;
-    --r:12px;
+    --r:14px;
     --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    --serif:Georgia,"Times New Roman",serif;
+    --serif:Georgia,"Times New Roman","Hiragino Mincho ProN","Yu Mincho",YuMincho,"Noto Serif JP","Songti SC",serif;
+    --round:"Hiragino Maru Gothic ProN","Hiragino Maru Gothic Pro","Yu Gothic UI","Zen Maru Gothic","Rounded Mplus 1c","M PLUS Rounded 1c","Quicksand",var(--ui);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -26,15 +27,21 @@
   }
   .wrap{max-width:680px;margin:0 auto;}
 
-  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}
-  .brand{display:flex;align-items:baseline;gap:8px;min-width:0;}
-  .brand h1{font-family:var(--serif);font-weight:400;font-size:19px;margin:0;letter-spacing:.4px;white-space:nowrap;}
-  .brand .mark{color:var(--brass);font-size:17px;}
-  .stats{display:flex;gap:14px;flex-shrink:0;}
-  .stat{text-align:right;}
-  .stat b{display:block;font-family:var(--mono);font-size:15px;font-weight:500;line-height:1.2;}
-  .stat span{display:block;font-size:10px;color:var(--ink-dim);letter-spacing:.4px;}
-  .stat b.hot{color:var(--brass);}
+  .topbar{margin:2px 0 16px;}
+  .brand{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    margin:0;font-weight:400;
+  }
+  .brand .name{
+    font-family:var(--round);font-size:24px;font-weight:600;
+    letter-spacing:4px;text-indent:4px;color:var(--ink);white-space:nowrap;
+  }
+  .brand .mark{color:var(--brass);font-size:12px;opacity:.85;}
+  .brand .rule{
+    flex:1 1 0;max-width:62px;height:1px;
+    background:linear-gradient(90deg,transparent,var(--edge));
+  }
+  .brand .rule:last-child{background:linear-gradient(90deg,var(--edge),transparent);}
 
   /* Session progress — 区切りと達成感 */
   .session{margin-bottom:12px;}
@@ -42,7 +49,6 @@
     display:flex;justify-content:space-between;align-items:baseline;
     font-size:11px;color:var(--ink-dim);margin-bottom:5px;letter-spacing:.4px;
   }
-  .session-head .lvl{color:var(--brass);font-family:var(--mono);}
   .pips{display:flex;gap:4px;}
   .pip{
     flex:1;height:5px;border-radius:3px;background:var(--surface-2);
@@ -51,6 +57,61 @@
   .pip.ok{background:var(--sage);}
   .pip.ng{background:var(--clay);}
   .pip.now{background:var(--brass);}
+
+  /* セット行 */
+  .set-row{
+    display:flex;align-items:baseline;gap:9px;
+    margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--edge);
+  }
+  .set-no{
+    font-size:12px;color:var(--ink);font-weight:600;
+    letter-spacing:.4px;flex-shrink:0;
+  }
+  .stars{display:flex;flex-wrap:wrap;gap:3px;align-items:center;min-width:0;}
+  .star{font-size:13px;line-height:1.15;}
+  .star.green{color:#6FBF6A;}
+  .star.yellow{color:#E0B93C;}
+  .star.red{color:#D45F5F;}
+  .star.perfect{text-shadow:0 0 7px rgba(111,191,106,.85);}
+  .star-hint{font-size:10.5px;color:var(--ink-dim);opacity:.7;}
+
+  /* 習熟度 */
+  .mastery{display:flex;flex-direction:column;gap:9px;}
+  .m-row{display:flex;align-items:center;gap:10px;font-size:12px;}
+  .m-name{
+    flex:0 0 84px;color:var(--ink-dim);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .m-pct{
+    flex:0 0 34px;text-align:right;font-family:var(--mono);
+    font-size:11px;color:var(--ink);
+  }
+  .m-row.done .m-name{color:var(--ink);}
+  .m-row.done .m-pct{color:#6FBF6A;font-weight:600;}
+  .m-bar{display:block;flex:1;height:8px;background:var(--surface-2);border-radius:5px;overflow:hidden;min-width:40px;}
+  .m-fill{display:block;height:100%;border-radius:5px;background:#6FBF6A;transition:width .35s;}
+  .m-fill.mid{background:#E0B93C;}
+  .m-fill.low{background:#D45F5F;}
+  .m-num{
+    flex:0 0 62px;text-align:right;font-family:var(--mono);
+    display:flex;align-items:baseline;justify-content:flex-end;gap:2px;
+  }
+  .m-num b{font-size:12.5px;font-weight:600;color:var(--ink);font-style:normal;}
+  .m-num i{font-size:10px;color:var(--ink-dim);font-style:normal;opacity:.85;}
+  .m-num.full b{color:#6FBF6A;}
+  .m-row.done .m-name{color:var(--ink);}
+  .m-row.done .m-num b{color:#6FBF6A;}
+  .m-row.done .m-fill{box-shadow:0 0 6px rgba(111,191,106,.6);}
+  .m-head{
+    display:flex;align-items:center;gap:10px;
+    font-size:9.5px;letter-spacing:.6px;color:var(--ink-dim);opacity:.75;
+    padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--edge);
+  }
+  .m-head .m-name{flex:0 0 84px;}
+  .m-head .m-bar-label{margin-left:44px;}
+  .m-head .m-bar-label{flex:1;min-width:40px;}
+  .m-head .m-num-label{flex:0 0 58px;text-align:right;}
+  .m-empty{font-size:12px;color:var(--ink-dim);margin:0;}
 
   .prompt{
     background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);
@@ -70,9 +131,34 @@
   .prompt-title{font-size:15px;font-weight:600;margin:0 0 3px;}
   .prompt-sub{font-size:12px;color:var(--ink-dim);margin:0;font-family:var(--mono);letter-spacing:.3px;}
   .prompt-hint{font-size:11.5px;color:var(--brass);margin:4px 0 0;}
+  .give-up{
+    appearance:none;background:transparent;border:none;cursor:pointer;
+    align-self:flex-start;flex-shrink:0;
+    font-family:var(--ui);font-size:11px;color:var(--ink-dim);
+    text-decoration:underline;text-underline-offset:3px;
+    padding:2px 0 2px 8px;
+  }
+  .give-up:hover{color:var(--ink);}
+  .give-up[hidden]{display:none;}
 
-  .replay-row{display:flex;gap:8px;margin-bottom:14px;}
-  .replay-row .btn{flex:1;}
+
+  /* 制限時間 */
+  .timer-row{display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+  .timer-row[hidden]{display:none;}
+  .timer-bar{
+    flex:1;height:5px;background:var(--surface-2);
+    border-radius:3px;overflow:hidden;
+  }
+  .timer-fill{display:block;height:100%;width:100%;background:var(--sage);border-radius:3px;}
+  .timer-fill.warn{background:var(--brass);}
+  .timer-fill.crit{background:var(--clay);}
+  .timer-num{
+    flex:0 0 26px;text-align:right;font-family:var(--mono);
+    font-size:12px;font-weight:600;color:var(--sage);
+  }
+  .timer-num.warn{color:var(--brass);}
+  .timer-num.crit{color:var(--clay);}
+
 
   .piano-card{
     background:var(--wood);border-radius:var(--r);padding:10px 10px 0;margin:0 auto 10px;
@@ -93,6 +179,15 @@
     transition:background .04s linear;touch-action:manipulation;
   }
   .lbl{font-family:var(--mono);font-size:11px;pointer-events:none;letter-spacing:.2px;line-height:1;}
+  .deg{
+    position:absolute;left:0;right:0;text-align:center;pointer-events:none;
+    font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.2px;
+    line-height:1;opacity:0;transition:opacity .15s;
+  }
+  .wk .deg{bottom:24px;color:#2f3d2c;}
+  .bk .deg{bottom:22px;color:var(--ivory);}
+  .show-deg .deg{opacity:1;}
+  .wk.ng .deg,.bk.ng .deg{opacity:0;}
   .wk .lbl{color:#8c8474;}
   .bk .lbl{color:#a89e8d;}
   .hide-labels .lbl{visibility:hidden;}
@@ -114,9 +209,11 @@
   .readout b{color:var(--ink);font-weight:600;}
 
   .actions{display:flex;gap:8px;margin-bottom:14px;}
+  .actions .btn-ghost{flex:1;}
+  .actions .btn-primary{flex:1.6;}
   .btn{
     appearance:none;border:none;cursor:pointer;font-family:var(--ui);font-size:14px;font-weight:600;
-    border-radius:10px;padding:14px 16px;
+    border-radius:12px;padding:14px 16px;
     transition:filter .12s,opacity .12s,background .12s,border-color .12s;
     touch-action:manipulation;white-space:nowrap;
   }
@@ -141,24 +238,15 @@
   summary .current{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
   .panel-body{padding:0 16px 16px;border-top:1px solid var(--edge);padding-top:14px;}
   .sec-label{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-dim);margin:0 0 9px;}
-  .sec-label + .sec-label,.mastery + .sec-label{margin-top:16px;}
-
-  .mastery{display:flex;flex-direction:column;gap:8px;}
-  .m-row{display:flex;align-items:center;gap:10px;font-size:12px;}
-  .m-name{flex:0 0 94px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .m-bar{flex:1;height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;}
-  .m-fill{height:100%;background:var(--sage);border-radius:4px;transition:width .4s ease;}
-  .m-fill.low{background:var(--clay);}
-  .m-fill.mid{background:var(--brass);}
-  .m-num{flex:0 0 46px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--ink-dim);}
-
+  .panel-body > .sec-label:not(:first-child){margin-top:20px;}
   .presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
   .preset{
     appearance:none;cursor:pointer;font-family:var(--ui);font-size:11px;background:transparent;
-    color:var(--ink-dim);border:1px solid var(--edge);border-radius:6px;padding:5px 10px;
+    color:var(--ink-dim);border:1px solid var(--edge);border-radius:8px;padding:5px 10px;
   }
   .preset:hover{color:var(--ink);border-color:var(--brass);}
-  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .preset[aria-pressed="true"]{background:var(--brass-dim);border-color:var(--brass);color:var(--ink);font-weight:600;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px;}
   .chip{
     appearance:none;cursor:pointer;font-family:var(--ui);font-size:12.5px;background:transparent;
     color:var(--ink-dim);border:1px solid var(--edge);border-radius:999px;padding:7px 13px;
@@ -185,13 +273,53 @@
   .switch[aria-checked="true"]{background:var(--brass-dim);border-color:var(--brass);}
   .switch[aria-checked="true"]::after{transform:translateX(18px);background:var(--brass);}
 
+  /* 平均100%のお祝い */
+  .cheer{
+    position:fixed;inset:0;z-index:50;display:grid;place-items:center;
+    background:rgba(10,15,20,.72);padding:24px;
+    animation:cheerIn .22s ease-out;
+  }
+  .cheer[hidden]{display:none;}
+  .cheer-card{
+    background:var(--surface);border:1px solid var(--brass);border-radius:18px;
+    padding:26px 24px 22px;max-width:320px;width:100%;text-align:center;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+    animation:cheerPop .28s cubic-bezier(.2,1.4,.5,1);
+  }
+  .cheer-mark{
+    display:flex;justify-content:center;align-items:center;
+    gap:4px;line-height:1;margin-bottom:13px;min-height:34px;
+  }
+  .cheer-mark span{
+    font-size:26px;color:var(--brass);
+    text-shadow:0 0 14px rgba(212,167,44,.65);
+    animation:starIn .34s backwards cubic-bezier(.2,1.5,.5,1);
+  }
+  .cheer-mark.solo span{font-size:34px;text-shadow:0 0 18px rgba(212,167,44,.7);}
+  .cheer-mark .count{
+    font-family:var(--round);font-size:22px;font-weight:600;
+    color:var(--brass);text-shadow:none;
+  }
+  @keyframes starIn{from{transform:scale(.3) rotate(-25deg);opacity:0}to{transform:none;opacity:1}}
+  .cheer-title{
+    font-family:var(--round);font-size:20px;font-weight:600;
+    margin:0 0 10px;letter-spacing:1px;
+  }
+  .cheer-body{font-size:13.5px;color:var(--ink-dim);line-height:1.9;margin:0 0 20px;}
+  .cheer-close{width:100%;flex:none;}
+  @keyframes cheerIn{from{opacity:0}to{opacity:1}}
+  @keyframes cheerPop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+  @media (prefers-reduced-motion:reduce){
+    .cheer,.cheer-card{animation:none;}
+  }
+
   footer{margin-top:18px;text-align:center;font-size:11.5px;color:var(--ink-dim);line-height:1.8;}
   kbd{
     font-family:var(--mono);font-size:10.5px;background:var(--surface-2);
     border:1px solid var(--edge);border-radius:4px;padding:1px 5px;color:var(--ink);
   }
   @media (max-width:420px){
-    .piano{height:150px;} .brand h1{font-size:17px;} .stats{gap:11px;}
+    .piano{height:150px;} .brand .name{font-size:20px;letter-spacing:4px;text-indent:4px;}
     .m-name{flex-basis:80px;}
   }
   @media (prefers-reduced-motion:reduce){ *{transition:none!important;} }
@@ -200,21 +328,30 @@
 <body>
 <div class="wrap">
 
-  <div class="topbar">
-    <div class="brand"><span class="mark">♪</span><h1>聴音トレーニング</h1></div>
-    <div class="stats">
-      <div class="stat"><b id="statScore">0/0</b><span>正解</span></div>
-      <div class="stat"><b id="statStreak">0</b><span>連続</span></div>
-      <div class="stat"><b id="statDays">0</b><span>日連続</span></div>
-    </div>
-  </div>
+  <header class="topbar">
+    <h1 class="brand">
+      <span class="rule"></span>
+      <span class="mark">♪</span>
+      <span class="name">音あてっこ</span>
+      <span class="mark">♪</span>
+      <span class="rule"></span>
+    </h1>
+  </header>
 
   <div class="session">
+    <div class="set-row">
+      <span class="set-no" id="setLabel">セット 1</span>
+      <div class="stars" id="stars"></div>
+    </div>
     <div class="session-head">
-      <span id="sessionLabel">セット 1 ／ 10問</span>
-      <span class="lvl" id="levelLabel">難易度 3</span>
+      <span id="sessionLabel">1/10問</span>
     </div>
     <div class="pips" id="pips"></div>
+  </div>
+
+  <div class="timer-row" id="timer" hidden>
+    <div class="timer-bar"><div class="timer-fill" id="timerFill"></div></div>
+    <span class="timer-num" id="timerNum">—</span>
   </div>
 
   <div class="prompt" id="prompt">
@@ -224,11 +361,7 @@
       <p class="prompt-sub" id="promptSub">鳴った音を鍵盤から選んでください</p>
       <p class="prompt-hint" id="promptHint" hidden></p>
     </div>
-  </div>
-
-  <div class="replay-row">
-    <button class="btn btn-ghost" id="replayBtn" disabled>♫ もう一度聴く</button>
-    <button class="btn btn-ghost" id="revealBtn" disabled>答えを見る</button>
+    <button class="give-up" id="revealBtn" hidden>答えを見る</button>
   </div>
 
   <div class="piano-card">
@@ -237,8 +370,8 @@
   <p class="readout" id="readout">鍵盤を押すと音を確認できます</p>
 
   <div class="actions">
+    <button class="btn btn-ghost" id="replayBtn" disabled>♫ もう一度聴く</button>
     <button class="btn btn-primary" id="mainBtn">スタート ▶</button>
-    <button class="btn btn-ghost" id="clearBtn" disabled>選択をクリア</button>
   </div>
 
   <details class="panel" id="masteryPanel">
@@ -248,7 +381,11 @@
       <span class="chev">▾</span>
     </summary>
     <div class="panel-body">
-      <p class="sec-label">和音タイプ別（直近の正答率）</p>
+      <div class="m-head">
+        <span class="m-name">和音</span>
+        <span class="m-bar-label">習熟度</span>
+        <span class="m-num-label">100%まで</span>
+      </div>
       <div class="mastery" id="mastery"></div>
     </div>
   </details>
@@ -270,21 +407,16 @@
       <p class="sec-label">個別選択</p>
       <div class="chips" id="chips"></div>
 
-      <div class="opt-row">
-        <label id="adaptLabel">
-          自動難易度調整
-          <span class="hint">正答率に合わせて音域と復習配分を調整します</span>
-        </label>
-        <div class="switch" id="adaptSwitch" role="switch" tabindex="0" aria-checked="true" aria-labelledby="adaptLabel"></div>
+
+      <p class="sec-label">制限時間（回答時間のみ）</p>
+      <div class="presets" id="limitRow">
+        <button class="preset" data-limit="0">なし</button>
+        <button class="preset" data-limit="auto">自動</button>
+        <button class="preset" data-limit="15">15秒</button>
+        <button class="preset" data-limit="10">10秒</button>
+        <button class="preset" data-limit="6">6秒</button>
       </div>
 
-      <div class="opt-row">
-        <label id="invLabel">
-          転回形を含める
-          <span class="hint">実際の曲では和音は基本形とは限りません</span>
-        </label>
-        <div class="switch" id="invSwitch" role="switch" tabindex="0" aria-checked="false" aria-labelledby="invLabel"></div>
-      </div>
 
       <div class="opt-row">
         <label id="labelSwitchLabel">
@@ -297,17 +429,29 @@
       <div class="opt-row">
         <label id="resetLabel">
           記録をリセット
-          <span class="hint">習熟度・連続日数をすべて消去します</span>
+          <span class="hint">復習キューと進捗を消去します</span>
         </label>
         <button class="preset" id="resetBtn">リセット</button>
       </div>
     </div>
   </details>
 
+  <div class="cheer" id="cheer" hidden>
+    <div class="cheer-card" role="dialog" aria-modal="true" aria-labelledby="cheerTitle">
+      <div class="cheer-mark" id="cheerMark"></div>
+      <p class="cheer-title" id="cheerTitle">平均 100%！</p>
+      <p class="cheer-body">
+        おつかれさま。<br>
+        いつも遊んでくれてありがとう。<br>また明日も遊んでね。
+      </p>
+      <button class="btn btn-primary cheer-close" id="cheerClose">とじる</button>
+    </div>
+  </div>
+
   <footer>
-    問題はC3〜C6の3オクターブからランダムな高さで鳴ります。<br>
+    問題はC3〜C6の3オクターブからランダムな高さ・転回形で鳴ります。<br>
     回答は音名だけで判定するので、鍵盤は1オクターブです。<br>
-    <kbd>Space</kbd> もう一度聴く ・ <kbd>Enter</kbd> 回答／次の問題 ・ <kbd>Esc</kbd> クリア
+    <kbd>Space</kbd> もう一度聴く ・ <kbd>Enter</kbd> 回答／次の問題 ・ <kbd>Esc</kbd> 選択をクリア
   </footer>
 
 </div>
@@ -348,81 +492,99 @@
   const BLACK_PC = new Set([1,3,6,8,10]);
   const SET_SIZE = 10;
   const STORE_KEY = 'earTrainer';
-  const SCHEMA = 3;
+  const LIMITS = ['0', 'auto', '15', '10', '6'];
+  const CHORD_MS = 1800;      // 和音が鳴り終わるまで（この間は計時しない）
+  const ADVANCE_LOCK_MS = 350; // 回答直後の誤タップで問題を飛ばさないための無効時間
+  const MAX_HISTORY = 200, MAX_REVIEW = 20;
 
   /* ══ DOM refs ══════════════════════════ */
   const $ = id => document.getElementById(id);
   const pianoEl=$('piano'), promptEl=$('prompt'), pIcon=$('promptIcon'),
         pTitle=$('promptTitle'), pSub=$('promptSub'), pHint=$('promptHint'),
-        readout=$('readout'), mainBtn=$('mainBtn'), clearBtn=$('clearBtn'),
+        readout=$('readout'), mainBtn=$('mainBtn'),
         replayBtn=$('replayBtn'), revealBtn=$('revealBtn'), chipsEl=$('chips'),
         modeSummary=$('modeSummary'), labelSwitch=$('labelSwitch'),
-        adaptSwitch=$('adaptSwitch'), invSwitch=$('invSwitch'), statScore=$('statScore'),
-        statStreak=$('statStreak'), statDays=$('statDays'), pipsEl=$('pips'),
-        sessionLabel=$('sessionLabel'), levelLabel=$('levelLabel'),
+        pipsEl=$('pips'), sessionLabel=$('sessionLabel'),
+        setLabel=$('setLabel'), starsEl=$('stars'),
         masteryEl=$('mastery'), masterySummary=$('masterySummary'),
-        resetBtn=$('resetBtn');
+        cheerEl=$('cheer'), cheerClose=$('cheerClose'),
+        cheerMark=$('cheerMark'),
+        resetBtn=$('resetBtn'), timerEl=$('timer'), timerFill=$('timerFill'), timerNum=$('timerNum'),
+        limitRow=$('limitRow');
 
   /* ══ Persisted state ═══════════════════ */
-  const todayKey = () => new Date().toISOString().slice(0,10);
+
+  // 習熟度＝ベータ分布の事後平均のパラメータ
+  // 習熟度は 0〜100 のカウンタ。正解で +GAIN、誤答で -LOSS。
+  // GAIN=10 なので 10問連続正解でちょうど100%。
+  // LOSS=20 は「正答率が 20/(10+20) = 67% を超えないと上がらない」ことを意味し、
+  // まぐれ当たりでは到達できない水準にしてある。
+  const GAIN = 10, LOSS = 20;
 
   const defaults = {
-    v:SCHEMA,
-    modes:['single','major','minor'], showLabels:true, adaptive:true,
-    inversions:false,
-    level:3, mastery:{}, dayStreak:0, lastDay:null,
-    bestSet:0, review:[]
+    modes:['single','major','minor'], showLabels:true,
+    limit:'0',
+    review:[], history:[], mastery:{}
   };
   let S = load();
 
   function load(){
+    const o = structuredClone(defaults);
     try{
-      const raw = localStorage.getItem(STORE_KEY) || localStorage.getItem('earTrainer.v2');
-      if(!raw) return structuredClone(defaults);
-      const prev = JSON.parse(raw);
-      const o = Object.assign(structuredClone(defaults), prev);
-      o.modes = o.modes.filter(id => MODE_BY_ID[id]);
-      if(!o.modes.length) o.modes = defaults.modes.slice();
-      if(!Array.isArray(o.review)) o.review = [];
-      if(!prev.v && o.modes.length === 1) o.modes = defaults.modes.slice();
-      o.v = SCHEMA;
+      const raw = localStorage.getItem(STORE_KEY);
+      if(!raw) return o;
+      const prev = JSON.parse(raw) || {};
+
+      if(Array.isArray(prev.modes)){
+        const ms = prev.modes.filter(id => MODE_BY_ID[id]);
+        if(ms.length) o.modes = ms;
+      }
+      if(typeof prev.showLabels === 'boolean') o.showLabels = prev.showLabels;
+      if(LIMITS.includes(prev.limit)) o.limit = prev.limit;
+
+      if(prev.mastery && typeof prev.mastery === 'object'){
+        for(const [id, r] of Object.entries(prev.mastery)){
+          if(!MODE_BY_ID[id] || !r) continue;
+          const n = +r.n, ok = +r.ok, v = +r.v;
+          if(Number.isFinite(n) && Number.isFinite(ok) && Number.isFinite(v) &&
+             n >= 0 && ok >= 0 && ok <= n && v >= 0 && v <= 100){
+            o.mastery[id] = { n, ok, v };
+          }
+        }
+      }
+      if(Array.isArray(prev.history)){
+        o.history = prev.history
+          .filter(n => Number.isInteger(n) && n >= 0 && n <= SET_SIZE)
+          .slice(-MAX_HISTORY);
+      }
+      if(Array.isArray(prev.review)){
+        o.review = prev.review.filter(isReviewItem).slice(0, MAX_REVIEW);
+      }
       return o;
     }catch(_){ return structuredClone(defaults); }
   }
+
+  function isReviewItem(t){
+    return !!t && MODE_BY_ID[t.modeId] &&
+      Number.isInteger(t.root) && Number.isInteger(t.inv) &&
+      typeof t.key === 'string' &&
+      Number.isFinite(t.box) && Number.isFinite(t.due);
+  }
+
   function save(){
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(_){}
   }
 
-  /* 日連続 — 損失回避を働かせるが、1日の猶予あり */
-  (function rollDay(){
-    const t = todayKey();
-    if(S.lastDay === t) return;
-    if(S.lastDay){
-      const gap = Math.round((Date.parse(t) - Date.parse(S.lastDay)) / 86400000);
-      if(gap > 2) S.dayStreak = 0;
-      // 平均回帰: 前日の落ち込んだ難易度のまま再開させない
-      if(S.level < 3) S.level = Math.min(3, S.level + 1);
-    }
-  })();
 
-  function markToday(){
-    const t = todayKey();
-    if(S.lastDay !== t){
-      S.dayStreak = (S.dayStreak || 0) + 1;
-      S.lastDay = t;
-      save();
-      renderStats();
-    }
-  }
 
   /* ══ Runtime state ═════════════════════ */
   const active = new Set(S.modes);
   let phase = 'idle';
   let question = null;
-  let played = 0, correct = 0, streak = 0;
-  let setNo = 1;
+  // 完了済みセット数から通し番号を復元する（リロードで星が消えないように）
+  let setNo = S.history.length + 1;
+  let setsToday = 0;   // このセッションで終えたセット数
   let setResults = [];
-  let recent = [];
   const reviewQueue = S.review;         // 復習キューは日をまたいで保持
   const selected = new Set();
   const keyEls = new Map();
@@ -491,7 +653,7 @@
       el.setAttribute('role','button');
       el.setAttribute('aria-label', noteName(m));
       el.setAttribute('aria-pressed','false');
-      el.innerHTML = '<span class="lbl">' + noteName(m) + '</span>';
+      el.innerHTML = '<span class="deg"></span><span class="lbl">' + noteName(m) + '</span>';
       if(black){
         el.style.left = (wIdx*wUnit - bW/2) + '%';
         el.style.width = bW + '%';
@@ -521,13 +683,25 @@
     keyEls.forEach((el, midi) => {
       el.classList.remove('on','ok','ng','miss');
       el.setAttribute('aria-pressed', selected.has(midi) ? 'true' : 'false');
+      const deg = el.querySelector('.deg');
+      deg.textContent = '';
       if(marks){
         const pc = midi % 12;
         if(selected.has(midi))       el.classList.add(marks.right.has(pc) ? 'ok' : 'ng');
         else if(marks.right.has(pc)) el.classList.add('miss');
+        // 根音からの度数を正解構成音に表示（転回しても不変）
+        if(marks.deg && marks.deg.has(pc)) deg.textContent = marks.deg.get(pc);
       } else if(selected.has(midi)) el.classList.add('on');
     });
     pianoEl.classList.toggle('frozen', phase !== 'answering');
+    pianoEl.classList.toggle('show-deg', !!(marks && marks.deg));
+  }
+
+  // 正解和音の各音に P1 / M3 / P5 などを割り当てる
+  function degreeMap(q){
+    const m = new Map();
+    q.mode.iv.forEach(iv => m.set((q.root + iv) % 12, IV_NAME[iv % 12]));
+    return m;
   }
 
   function updateReadout(){
@@ -547,13 +721,6 @@
     else pHint.hidden = true;
   }
 
-  function renderStats(){
-    statScore.textContent = correct + '/' + played;
-    statStreak.textContent = streak;
-    statStreak.classList.toggle('hot', streak >= 3);
-    statDays.textContent = S.dayStreak || 0;
-    statDays.classList.toggle('hot', (S.dayStreak||0) >= 2);
-  }
 
   function renderPips(){
     pipsEl.innerHTML = '';
@@ -563,9 +730,142 @@
                     : (i === setResults.length && phase === 'answering' ? ' now' : ''));
       pipsEl.appendChild(d);
     }
-    sessionLabel.textContent = 'セット ' + setNo + ' ／ ' +
+    setLabel.textContent = 'セット ' + setNo;
+    sessionLabel.textContent =
       Math.min(setResults.length + (phase==='answering'?1:0), SET_SIZE) + '/' + SET_SIZE + '問';
-    levelLabel.textContent = '難易度 ' + S.level;
+    renderStars();
+  }
+
+  // 完了セットごとに星を1つ。色が成績を表す
+  const STAR_TIERS = [
+    { min:8, cls:'green',  ch:'★', label:'8問以上' },
+    { min:5, cls:'yellow', ch:'★', label:'5〜7問' },
+    { min:0, cls:'red',    ch:'★', label:'4問以下' }
+  ];
+  function starFor(ok){ return STAR_TIERS.find(t => ok >= t.min); }
+
+  // 習熟度＝ベータ分布の事後平均。直近を重視しつつ試行回数も反映する。
+  function masteryOf(r){ return r.v / 100; }
+  // 100%までに必要な連続正解数
+  function toGo(r){ return Math.ceil((100 - r.v) / GAIN); }
+
+  function recordMastery(id, ok){
+    const r = S.mastery[id] || (S.mastery[id] = { n:0, ok:0, v:0 });
+    r.n++; if(ok) r.ok++;
+    r.v = clamp(r.v + (ok ? GAIN : -LOSS), 0, 100);
+  }
+
+  // バーと数字は同じ指標（正解数 / 出題数）を示す
+  function renderMastery(){
+    const rows = MODES.filter(m => S.mastery[m.id] && S.mastery[m.id].n > 0);
+    masteryEl.innerHTML = '';
+    if(!rows.length){
+      const p = document.createElement('p');
+      p.className = 'm-empty';
+      p.textContent = '問題に答えると、和音ごとの習熟度がここに出ます。';
+      masteryEl.appendChild(p);
+      masterySummary.textContent = 'まだ記録なし';
+      return;
+    }
+    const avg = Math.round(rows.reduce((x,m) => x + masteryOf(S.mastery[m.id]), 0) / rows.length * 100);
+    // 正答率の低い順＝苦手が上に来る
+    rows.sort((a,b) => masteryOf(S.mastery[a.id]) - masteryOf(S.mastery[b.id]));
+    rows.forEach(m => {
+      const r = S.mastery[m.id];
+      const pct = Math.round(masteryOf(r) * 100);
+      const mastered = pct >= 100;
+      const row = document.createElement('div');
+      row.className = 'm-row' + (mastered ? ' done' : '');
+      row.title = m.label + ' — 習熟度 ' + pct + '%（通算 ' + r.ok + '/' + r.n + '問正解）';
+
+      const name = document.createElement('span');
+      name.className = 'm-name';
+      name.textContent = m.label;
+
+      const pctEl = document.createElement('span');
+      pctEl.className = 'm-pct'; pctEl.textContent = pct + '%';
+
+      const bar = document.createElement('span');
+      bar.className = 'm-bar';
+      const fill = document.createElement('span');
+      fill.className = 'm-fill' + (pct < 50 ? ' low' : pct < 80 ? ' mid' : '');
+      fill.style.width = pct + '%';
+      bar.appendChild(fill);
+
+      const num = document.createElement('span');
+      num.className = 'm-num';
+      if(pct >= 100){
+        num.innerHTML = '<b>100%</b>';
+        num.classList.add('full');
+      } else {
+        num.innerHTML = '<b>あと' + toGo(r) + '</b><i>問</i>';
+      }
+
+      row.appendChild(name); row.appendChild(pctEl); row.appendChild(bar); row.appendChild(num);
+      masteryEl.appendChild(row);
+    });
+    masterySummary.textContent = '平均 ' + avg + '% ／ 苦手 ' + rows[0].label;
+  }
+
+  // 選択中の和音すべてが100%になったら1度だけ祝う
+  let cheered = false;
+
+  // 終えたセット数だけ星を並べる。8を超えたら星1つ＋数字に切り替える
+  const CHEER_MAX_STARS = 8;
+  function renderCheerStars(n){
+    cheerMark.innerHTML = '';
+    const many = n > CHEER_MAX_STARS;
+    const stars = many ? 1 : Math.max(n, 1);
+    cheerMark.className = 'cheer-mark' + (stars === 1 ? ' solo' : '');
+    for(let i = 0; i < stars; i++){
+      const st = document.createElement('span');
+      st.textContent = '★';
+      st.style.animationDelay = (i * 0.05) + 's';
+      cheerMark.appendChild(st);
+    }
+    if(many){
+      const c = document.createElement('span');
+      c.className = 'count';
+      c.textContent = n;
+      c.style.animationDelay = '0.12s';
+      cheerMark.appendChild(c);
+    }
+  }
+  function checkCheer(){
+    const sel = MODES.filter(m => active.has(m.id));
+    const rec = sel.filter(m => S.mastery[m.id] && S.mastery[m.id].n > 0);
+    const allFull = rec.length === sel.length && rec.length > 0 &&
+      rec.every(m => Math.round(masteryOf(S.mastery[m.id]) * 100) >= 100);
+    if(allFull && !cheered){
+      cheered = true;
+      renderCheerStars(setsToday);
+      cheerEl.hidden = false;
+      cheerClose.focus();
+    } else if(!allFull){
+      cheered = false;
+    }
+  }
+
+  function renderStars(){
+    starsEl.innerHTML = '';
+    // 現在のセットぶんは、次のセットに進んでから星をつける
+    // （10問目を答えた画面で「セット1」と星が同時に出るのを防ぐ）
+    const done = S.history.slice(0, setNo - 1);
+    if(!done.length){
+      const hint = document.createElement('span');
+      hint.className = 'star-hint';
+      hint.textContent = '10問ごとに星がつきます';
+      starsEl.appendChild(hint);
+      return;
+    }
+    done.forEach((ok, i) => {
+      const tier = starFor(ok);
+      const el = document.createElement('span');
+      el.className = 'star ' + tier.cls + (ok === SET_SIZE ? ' perfect' : '');
+      el.textContent = tier.ch;
+      el.title = 'セット ' + (i + 1) + ': ' + ok + '/' + SET_SIZE;
+      starsEl.appendChild(el);
+    });
   }
 
   const INV_NAME = ['', '第1転回', '第2転回', '第3転回'];
@@ -574,71 +874,104 @@
     const nm = NOTES[q.root] + (q.mode.id === 'major' ? '' : q.mode.sym);
     return q.inv ? nm + '（' + INV_NAME[q.inv] + '）' : nm;
   };
-  const spell = q => q.midis.map(fullName).join(' – ');
+  const IV_NAME = ['P1','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'];
+  // 実際に鳴った順（低い音から）
+  function voicingSpell(q){
+    const sorted = q.midis.slice().sort((a,b) => a - b);
+    const bass = sorted[0];
+    return sorted.map((m,i) => {
+      const semi = (m - bass) % 12;
+      return fullName(m) + (i === 0 ? '' : ' ' + IV_NAME[semi]);
+    }).join(' – ');
+  }
 
-  /* ══ Mastery ═══════════════════════════ */
-  function mRec(id){
-    if(!S.mastery[id]) S.mastery[id] = {n:0, ok:0, ema:0.5};
-    return S.mastery[id];
+
+
+  /* ══ Time limit ════════════════════════
+     計時は「音が鳴り終わってから」開始し、回答時間だけを測る。
+     再生中は計時しないので、もう一度聴いても損をしない。 */
+  let tRAF = 0, tEnd = 0, tTotal = 0, tPausedAt = 0;
+
+  // 自動: ヒックの法則 RT = a + b*log2(N)
+  //   N は「12鍵から n 個選ぶ」組み合わせ数（1/2/3/4音 = 12/66/220/495通り）。
+  // 締切は「知覚＋タップ入力＋確認」の所要時間の中央値をもとに、
+  // 反応時間分布の75パーセンタイル（心理学実験で締切設定に使われる基準）に置いた。
+  //   1音 = 知覚2.5s + タップ0.6s + 確認1.2s ≒ 4.3s（中央値）→ 締切6秒
+  // 結果は 1/2/3/4音 = 6/9/11/12秒。増え方は徐々に緩やかになる。
+  function comb(n, k){
+    let r = 1;
+    for(let i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+    return r;
   }
-  function recordMastery(id, ok){
-    const r = mRec(id);
-    r.n++; if(ok) r.ok++;
-    r.ema = r.ema * 0.75 + (ok ? 1 : 0) * 0.25;   // 直近重視
-    save();
-  }
-  function renderMastery(){
-    const rows = MODES.filter(m => S.mastery[m.id] && S.mastery[m.id].n > 0);
-    masteryEl.innerHTML = '';
-    if(!rows.length){
-      masteryEl.innerHTML = '<p class="sec-label" style="margin:0">まだ記録がありません。</p>';
-      masterySummary.textContent = 'まだ記録なし';
-      return;
+  function limitSeconds(){
+    if(S.limit === '0') return 0;
+    if(S.limit === 'auto'){
+      const n = question ? question.midis.length : 3;
+      return clamp(Math.round(1.31 + 1.22 * Math.log2(comb(12, n))), 5, 16);
     }
-    rows.sort((a,b) => S.mastery[a.id].ema - S.mastery[b.id].ema);
-    rows.forEach(m => {
-      const r = S.mastery[m.id];
-      const pct = Math.round(r.ema * 100);
-      const cls = pct < 45 ? 'low' : pct < 75 ? 'mid' : '';
-      const row = document.createElement('div');
-      row.className = 'm-row';
-      row.innerHTML =
-        '<span class="m-name">' + m.label + '</span>' +
-        '<span class="m-bar"><span class="m-fill ' + cls + '" style="width:' + pct + '%"></span></span>' +
-        '<span class="m-num">' + pct + '% ' + r.n + '</span>';
-      masteryEl.appendChild(row);
-    });
-    const weakest = rows[0];
-    const avg = Math.round(rows.reduce((s,m) => s + S.mastery[m.id].ema, 0) / rows.length * 100);
-    masterySummary.textContent = '平均 ' + avg + '% ／ 苦手: ' + weakest.label;
+    return +S.limit;
   }
 
-  /* ══ Adaptive difficulty (flow zone) ═══ */
-  function adapt(){
-    if(!S.adaptive || recent.length < 6) return;
-    const win = recent.slice(-10);
-    const rate = win.reduce((a,b) => a + (b?1:0), 0) / win.length;
-    const before = S.level;
-    if(rate > 0.8) S.level = clamp(S.level + 1, 1, 6);
-    else if(rate < 0.5) S.level = clamp(S.level - 1, 1, 6);
-    if(S.level !== before){ recent = recent.slice(-4); save(); }
-  }
-  // 難易度→出題音域の広さ（低レベルほど中音域に集中＝聴きやすい）
-  function rangeFor(){
-    const spread = [6, 9, 12, 18, 24, 36][S.level - 1];
-    const center = 66;
-    return { lo: clamp(center - Math.round(spread/2), Q_LOW, Q_HIGH),
-             hi: clamp(center + Math.round(spread/2), Q_LOW, Q_HIGH) };
+  function stopTimer(){
+    if(tRAF) cancelAnimationFrame(tRAF);
+    tRAF = 0;
+    timerEl.hidden = true;
   }
 
-  /* ══ Round flow ════════════════════════ */
+  function tick(){
+    const left = tEnd - performance.now();
+    const frac = clamp(left / tTotal, 0, 1);
+    const cls = frac < 0.2 ? ' crit' : frac < 0.5 ? ' warn' : '';
+    timerFill.style.width = (frac * 100) + '%';
+    timerFill.className = 'timer-fill' + cls;
+    timerNum.textContent = Math.max(0, Math.ceil(left / 1000));
+    timerNum.className = 'timer-num' + cls;
+    if(left <= 0){ stopTimer(); timeUp(); return; }
+    tRAF = requestAnimationFrame(tick);
+  }
+
+  function startTimer(){
+    const secs = limitSeconds();
+    if(!secs || phase !== 'answering'){ stopTimer(); return; }
+    tTotal = secs * 1000;
+    tEnd = performance.now() + tTotal;
+    timerEl.hidden = false;
+    timerFill.style.width = '100%';
+    timerFill.className = 'timer-fill';
+    timerNum.textContent = Math.ceil(secs);
+    timerNum.className = 'timer-num';
+    if(tRAF) cancelAnimationFrame(tRAF);
+    tRAF = requestAnimationFrame(tick);
+  }
+
+  // 再生中は一時停止（聴き直しでペナルティを受けない）
+  function pauseTimerFor(ms){
+    if(!tRAF) return;
+    cancelAnimationFrame(tRAF); tRAF = 0;
+    tPausedAt = tEnd - performance.now();
+    setTimeout(() => {
+      if(phase !== 'answering') return;
+      tEnd = performance.now() + tPausedAt;
+      tRAF = requestAnimationFrame(tick);
+    }, ms);
+  }
+
+  function timeUp(){
+    if(phase !== 'answering' || !question) return;
+    const right = new Set(question.midis.map(m => m % 12));
+    phase = 'resolved';
+    finishRound(false, false);
+    paintKeys({ right, deg: degreeMap(question) });
+    cue(false);
+    setPrompt('wrong','⏱','時間切れ — 正解は ' + chordLabel(question),
+              voicingSpell(question), setEndMessage());
+    syncButtons();
+  }
+
+
   function rootMidiFor(root, span){
-    const {lo, hi} = rangeFor();
     const opts = [];
-    for(let m = lo; m <= hi - span; m++) if(m % 12 === root) opts.push(m);
-    if(!opts.length){
-      for(let m = Q_LOW; m <= Q_HIGH - span; m++) if(m % 12 === root) opts.push(m);
-    }
+    for(let m = Q_LOW; m <= Q_HIGH - span; m++) if(m % 12 === root) opts.push(m);
     return opts[Math.floor(Math.random() * opts.length)];
   }
 
@@ -652,32 +985,47 @@
   }
 
   // Leitner式: 間違えた課題は間隔を空けて再出題し、正解するたび間隔を伸ばす
-  let sinceStart = 0;
+  // due は前回セッションの通し番号基準なので、読み込み時に 0 起点へ詰め直す
+  // 復習キュー: 間違えた課題を間隔を空けて再出題する（Leitner方式）。
+  // due は「解いた問題数」を時計にした期限。box が上がるほど間隔が伸び、
+  // GRADUATE 回連続で正解したらキューから外れる。
+  const REVIEW_GAPS = [0, 2, 5, 9, 14];   // box -> 次に出すまでの間隔
+  const GRADUATE = 4;
+  let solved = 0;                          // 出題した問題数（due の基準）
+
+  // 保存された due は前回セッションの基準なので、0起点へ詰め直す
+  (function rebaseDue(){
+    if(!reviewQueue.length) return;
+    const min = Math.min(...reviewQueue.map(t => t.due));
+    reviewQueue.forEach(t => { t.due = Math.max(0, t.due - min); });
+  })();
+
   function dueReview(){
-    for(let i = 0; i < reviewQueue.length; i++){
-      const t = reviewQueue[i];
-      if(t.due <= sinceStart && active.has(t.modeId)) return i;
-    }
-    return -1;
+    return reviewQueue.findIndex(t => t.due <= solved && active.has(t.modeId));
   }
+
   function scheduleReview(key, ok){
     const i = reviewQueue.findIndex(t => t.key === key);
-    if(ok){
-      if(i < 0) return;
-      const t = reviewQueue[i];
-      t.box = (t.box || 1) + 1;
-      if(t.box > 4){ reviewQueue.splice(i, 1); }        // 4回連続で正解＝卒業
-      else t.due = sinceStart + [0,2,5,9,14][t.box];
-    } else {
+
+    if(!ok){
       if(i >= 0){
         reviewQueue[i].box = 1;
-        reviewQueue[i].due = sinceStart + 2;
+        reviewQueue[i].due = solved + REVIEW_GAPS[1];
       } else {
         const [modeId, root, inv] = key.split(':');
-        reviewQueue.push({ key, modeId, root:+root, inv:+inv, box:1, due:sinceStart + 2 });
-        if(reviewQueue.length > 20) reviewQueue.shift();
+        reviewQueue.push({
+          key, modeId, root: +root, inv: +inv,
+          box: 1, due: solved + REVIEW_GAPS[1]
+        });
+        if(reviewQueue.length > MAX_REVIEW) reviewQueue.shift();
       }
+    } else if(i >= 0){
+      const t = reviewQueue[i];
+      t.box++;
+      if(t.box > GRADUATE) reviewQueue.splice(i, 1);
+      else t.due = solved + REVIEW_GAPS[t.box];
     }
+
     S.review = reviewQueue;
   }
 
@@ -685,30 +1033,17 @@
     const pool = MODES.filter(m => active.has(m.id));
     if(!pool.length) return null;
 
-    if(S.adaptive){
-      const idx = dueReview();
-      if(idx >= 0){
-        const t = reviewQueue[idx];
-        return { mode: MODE_BY_ID[t.modeId], root: t.root, inv: t.inv, review: true };
-      }
+    const idx = dueReview();
+    if(idx >= 0){
+      const t = reviewQueue[idx];
+      return { mode: MODE_BY_ID[t.modeId], root: t.root, inv: t.inv, review: true };
     }
-    let mode;
-    if(S.adaptive){
-      const weights = pool.map(m => {
-        const r = S.mastery[m.id];
-        return r && r.n >= 2 ? (1.2 - r.ema) + 0.25 : 1;
-      });
-      const total = weights.reduce((a,b)=>a+b,0);
-      let x = Math.random() * total;
-      mode = pool[0];
-      for(let i=0;i<pool.length;i++){ x -= weights[i]; if(x <= 0){ mode = pool[i]; break; } }
-    } else {
-      mode = pool[Math.floor(Math.random()*pool.length)];
-    }
-    const maxInv = (S.inversions && mode.iv.length > 1) ? mode.iv.length - 1 : 0;
+    const mode = pool[Math.floor(Math.random() * pool.length)];
+    // 転回形は常に自然に混ぜる
+    const maxInv = mode.iv.length > 1 ? mode.iv.length - 1 : 0;
     return {
       mode,
-      root: Math.floor(Math.random()*12),
+      root: Math.floor(Math.random() * 12),
       inv: maxInv ? Math.floor(Math.random() * (maxInv + 1)) : 0,
       review: false
     };
@@ -732,38 +1067,47 @@
     selected.clear();
     paintKeys(); updateReadout();
     setPrompt('', '♪', '鳴った音を鍵盤から選んでください',
-      task.mode.label + ' ／ 音を選んだら「回答する」',
+      '選び終えたら「回答する」を押します',
       task.review ? '↻ 復習問題' : null);
     renderPips(); syncButtons();
     playChord(question.midis);
+    stopTimer();
+    if(limitSeconds()) setTimeout(() => { if(phase === 'answering') startTimer(); }, CHORD_MS);
   }
 
   function startNewSet(){
     setNo++; setResults = []; save();
   }
 
-  function replay(){ if(question) playChord(question.midis); }
+  function recordSet(){
+    const ok = setResults.filter(r => r === 'ok').length;
+    setsToday++;
+    S.history.push(ok);
+    if(S.history.length > MAX_HISTORY) S.history.shift();
+    save();
+  }
+
+  function replay(){
+    if(!question) return;
+    playChord(question.midis);
+    pauseTimerFor(CHORD_MS);
+  }
 
   function finishRound(isRight, revealed){
-    played++;
-    if(isRight){ correct++; streak++; }
-    else streak = 0;
-    markToday();
-
-    recordMastery(question.mode.id, isRight);
-    sinceStart++;
-    recent.push(isRight);
-    if(recent.length > 12) recent.shift();
-    scheduleReview(question.key, isRight);
-    setResults.push(isRight ? 'ok' : 'ng');
-    adapt();
-
-    if(setResults.length >= SET_SIZE){
-      const setOk = setResults.filter(r => r === 'ok').length;
-      if(setOk > (S.bestSet||0)) S.bestSet = setOk;
+    solved++;
+    // 「答えを見る」は採点しない（習熟度・セット進捗・お祝いに影響させない）。
+    // ただし復習キューには積む＝あとでもう一度出題される。
+    scheduleReview(question.key, revealed ? false : isRight);
+    if(revealed){
+      save();
+      return;
     }
+    recordMastery(question.mode.id, isRight);
+    setResults.push(isRight ? 'ok' : 'ng');
+    if(setResults.length === SET_SIZE) recordSet();
     save();
-    renderStats(); renderMastery(); renderPips();
+    renderPips(); renderMastery();
+    checkCheer();
   }
 
   // 何が惜しかったかを具体的に返す（有能感を支える即時フィードバック）
@@ -779,9 +1123,12 @@
   function setEndMessage(){
     if(setResults.length < SET_SIZE) return null;
     const ok = setResults.filter(r => r === 'ok').length;
-    if(ok === SET_SIZE) return 'セット ' + setNo + ' 完了 — ' + ok + '/' + SET_SIZE + ' 満点';
-    if(ok >= (S.bestSet||0)) return 'セット ' + setNo + ' 完了 — ' + ok + '/' + SET_SIZE + '（自己ベスト）';
-    return 'セット ' + setNo + ' 完了 — ' + ok + '/' + SET_SIZE + '（自己ベスト ' + S.bestSet + '）';
+    const base = 'セット ' + setNo + ' 完了 — ' + ok + '/' + SET_SIZE;
+    const past = S.history.slice(0, -1);
+    if(!past.length) return base;
+    if(ok > Math.max(...past)) return base + '（これまでの最高）';
+    const total = S.history.reduce((a,b) => a + b, 0);
+    return base + ' ／ 累計 ' + total + '問正解';
   }
 
   function submit(){
@@ -791,16 +1138,17 @@
     const isRight = given.size === right.size && [...right].every(pc => given.has(pc));
 
     phase = 'resolved';
+    stopTimer();
     finishRound(isRight, false);
-    paintKeys({ right });
+    paintKeys({ right, deg: degreeMap(question) });
     cue(isRight);
 
     const setMsg = setEndMessage();
     if(isRight){
-      setPrompt('correct','✓','正解 — ' + chordLabel(question), spell(question), setMsg);
+      setPrompt('correct','✓','正解 — ' + chordLabel(question), voicingSpell(question), setMsg);
     } else {
       setPrompt('wrong','✕','不正解 — 正解は ' + chordLabel(question),
-                spell(question), setMsg || diffText(right, given));
+                voicingSpell(question), setMsg || diffText(right, given));
     }
     syncButtons();
   }
@@ -809,9 +1157,10 @@
     if(phase !== 'answering' || !question) return;
     const right = new Set(question.midis.map(m => m % 12));
     phase = 'resolved';
+    stopTimer();
     finishRound(false, true);
-    paintKeys({ right });
-    setPrompt('info','♪', chordLabel(question), spell(question), setEndMessage());
+    paintKeys({ right, deg: degreeMap(question) });
+    setPrompt('info','♪', chordLabel(question), voicingSpell(question), setEndMessage());
     syncButtons();
   }
 
@@ -825,18 +1174,19 @@
     if(phase === 'idle'){
       mainBtn.textContent = 'スタート ▶';
       mainBtn.disabled = false;
-      replayBtn.disabled = true; revealBtn.disabled = true;
-      clearBtn.disabled = true;
+      replayBtn.disabled = true;
+      revealBtn.hidden = true;
     } else if(phase === 'answering'){
       mainBtn.textContent = '回答する ✓';
       mainBtn.disabled = !selected.size;
-      replayBtn.disabled = false; revealBtn.disabled = false;
-      clearBtn.disabled = !selected.size;
+      replayBtn.disabled = false;
+      revealBtn.hidden = false;
     } else {
       const done = setResults.length >= SET_SIZE;
       mainBtn.textContent = done ? '次のセットへ ▶' : '次の問題へ ▶';
       mainBtn.disabled = false;
-      replayBtn.disabled = false; revealBtn.disabled = true; clearBtn.disabled = true;
+      replayBtn.disabled = false;
+      revealBtn.hidden = true;
     }
   }
 
@@ -880,8 +1230,21 @@
     labelSwitch.setAttribute('aria-checked', String(S.showLabels));
     pianoEl.classList.toggle('hide-labels', !S.showLabels);
   }
-  function applyAdapt(){ adaptSwitch.setAttribute('aria-checked', String(S.adaptive)); }
-  function applyInv(){ invSwitch.setAttribute('aria-checked', String(S.inversions)); }
+  function applyLimit(){
+    [...limitRow.children].forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.limit === S.limit)));
+    if(!limitSeconds()) stopTimer();
+  }
+  limitRow.querySelectorAll('.preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      S.limit = btn.dataset.limit;
+      save(); applyLimit();
+      if(phase === 'answering'){
+        limitSeconds() ? startTimer() : stopTimer();
+      }
+    });
+  });
+
 
   function bindSwitch(el, get, set){
     const t = () => { set(!get()); save(); };
@@ -891,29 +1254,45 @@
     });
   }
   bindSwitch(labelSwitch, () => S.showLabels, v => { S.showLabels = v; applyLabels(); });
-  bindSwitch(adaptSwitch, () => S.adaptive,  v => { S.adaptive = v; applyAdapt(); });
-  bindSwitch(invSwitch,   () => S.inversions, v => { S.inversions = v; applyInv(); });
 
   resetBtn.addEventListener('click', () => {
-    if(!confirm('習熟度と連続日数をすべて消去します。よろしいですか？')) return;
-    S.mastery = {}; S.dayStreak = 0; S.lastDay = null;
-    S.bestSet = 0; S.level = 3;
+    if(!confirm('記録をすべて消去します。よろしいですか？')) return;
     reviewQueue.length = 0; S.review = reviewQueue;
-    played = correct = streak = 0; setResults = []; recent = [];
-    setNo = 1; sinceStart = 0;
-    save(); renderStats(); renderMastery(); renderPips();
+    S.history = []; S.mastery = {};
+    setResults = []; setNo = 1; solved = 0; setsToday = 0;
+    save(); renderPips(); renderMastery();
   });
 
   /* ══ Wiring ════════════════════════════ */
-  mainBtn.addEventListener('click', () => { phase === 'answering' ? submit() : nextRound(); });
+  // 回答直後は同じ位置のボタンが「次の問題へ」に変わるため、
+  // 連打で問題を飛ばさないよう短い無効時間を置く
+  let advanceLockUntil = 0;
+  mainBtn.addEventListener('click', () => {
+    if(phase === 'answering'){
+      submit();
+      advanceLockUntil = performance.now() + ADVANCE_LOCK_MS;
+      return;
+    }
+    if(performance.now() < advanceLockUntil) return;
+    nextRound();
+  });
+  cheerClose.addEventListener('click', () => { cheerEl.hidden = true; });
+  cheerEl.addEventListener('click', e => { if(e.target === cheerEl) cheerEl.hidden = true; });
+
   replayBtn.addEventListener('click', replay);
   revealBtn.addEventListener('click', reveal);
-  clearBtn.addEventListener('click', clearSelection);
 
   document.addEventListener('keydown', e => {
     const t = e.target;
+    if(!cheerEl.hidden){
+      if(e.key === 'Escape' || e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        cheerEl.hidden = true;
+      }
+      return;
+    }
     if(t && (t.tagName === 'BUTTON' || t.classList.contains('wk') ||
-             t.classList.contains('bk') || t === labelSwitch || t === adaptSwitch || t === invSwitch ||
+             t.classList.contains('bk') || t === labelSwitch ||
              t.tagName === 'SUMMARY')) return;
     if(e.key === ' '){ e.preventDefault(); if(!replayBtn.disabled) replay(); }
     else if(e.key === 'Enter'){ e.preventDefault(); if(!mainBtn.disabled) mainBtn.click(); }
@@ -921,8 +1300,8 @@
   });
 
   /* ══ Init ══════════════════════════════ */
-  applyLabels(); applyAdapt(); applyInv(); renderSummary();
-  renderStats(); renderMastery(); renderPips();
+  applyLabels(); applyLimit(); renderSummary();
+  renderPips(); renderMastery();
   updateReadout(); paintKeys(); syncButtons();
 })();
 </script>
