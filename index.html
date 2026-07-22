@@ -429,7 +429,7 @@
       <div class="opt-row">
         <label id="resetLabel">
           記録をリセット
-          <span class="hint">復習キューと進捗を消去します</span>
+          <span class="hint">習熟度と進捗を消去します</span>
         </label>
         <button class="preset" id="resetBtn">リセット</button>
       </div>
@@ -480,6 +480,9 @@
   ];
   const MODE_BY_ID = Object.fromEntries(MODES.map(m => [m.id, m]));
 
+  const INV_NAME = ['', '第1転回', '第2転回', '第3転回'];
+  const IV_NAME  = ['P1','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'];
+
   const PRESETS = {
     basic:   ['single','major','minor'],
     triad:   ['major','minor','dim','aug','sus2','sus4'],
@@ -495,7 +498,7 @@
   const LIMITS = ['0', 'auto', '15', '10', '6'];
   const CHORD_MS = 1800;      // 和音が鳴り終わるまで（この間は計時しない）
   const ADVANCE_LOCK_MS = 350; // 回答直後の誤タップで問題を飛ばさないための無効時間
-  const MAX_HISTORY = 200, MAX_REVIEW = 20;
+  const MAX_HISTORY = 200;
 
   /* ══ DOM refs ══════════════════════════ */
   const $ = id => document.getElementById(id);
@@ -524,7 +527,7 @@
   const defaults = {
     modes:['single','major','minor'], showLabels:true,
     limit:'0',
-    review:[], history:[], mastery:{}
+    history:[], mastery:{}
   };
   let S = load();
 
@@ -557,18 +560,8 @@
           .filter(n => Number.isInteger(n) && n >= 0 && n <= SET_SIZE)
           .slice(-MAX_HISTORY);
       }
-      if(Array.isArray(prev.review)){
-        o.review = prev.review.filter(isReviewItem).slice(0, MAX_REVIEW);
-      }
       return o;
     }catch(_){ return structuredClone(defaults); }
-  }
-
-  function isReviewItem(t){
-    return !!t && MODE_BY_ID[t.modeId] &&
-      Number.isInteger(t.root) && Number.isInteger(t.inv) &&
-      typeof t.key === 'string' &&
-      Number.isFinite(t.box) && Number.isFinite(t.due);
   }
 
   function save(){
@@ -577,21 +570,29 @@
 
 
 
-  /* ══ Runtime state ═════════════════════ */
-  const active = new Set(S.modes);
-  let phase = 'idle';
-  let question = null;
+  /* ══ Runtime state ═════════════════════
+     保存しない、その場かぎりの状態をここにまとめる。      */
+
+  // 出題の進行段階。idle=開始前 / answering=回答中 / resolved=答え合わせ中
+  const IDLE = 'idle', ANSWERING = 'answering', RESOLVED = 'resolved';
+
+  const active   = new Set(S.modes);   // 選択中の和音タイプ
+  const selected = new Set();          // いま押している鍵（midi番号）
+  const keyEls   = new Map();          // midi番号 -> 鍵のDOM
+
+  let phase      = IDLE;
+  let question   = null;               // 出題中の和音
+  let setResults = [];                 // 現在のセットの 'ok'/'ng'
+  let setsToday  = 0;                  // このセッションで終えたセット数
   // 完了済みセット数から通し番号を復元する（リロードで星が消えないように）
-  let setNo = S.history.length + 1;
-  let setsToday = 0;   // このセッションで終えたセット数
-  let setResults = [];
-  const reviewQueue = S.review;         // 復習キューは日をまたいで保持
-  const selected = new Set();
-  const keyEls = new Map();
+  let setNo      = S.history.length + 1;
+
+  /* ══ Helpers ═══════════════════════════ */
 
   const noteName = m => NOTES[m % 12];
   const fullName = m => NOTES[m % 12] + (Math.floor(m / 12) - 1);
-  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const pitchClasses = q => new Set(q.midis.map(m => m % 12));
 
   /* ══ Audio ═════════════════════════════ */
   let ctx = null, master = null;
@@ -674,7 +675,7 @@
 
   function pressKey(midi){
     playSingle(midi);
-    if(phase !== 'answering') return;
+    if(phase !== ANSWERING) return;
     selected.has(midi) ? selected.delete(midi) : selected.add(midi);
     paintKeys(); updateReadout(); syncButtons();
   }
@@ -693,7 +694,7 @@
         if(marks.deg && marks.deg.has(pc)) deg.textContent = marks.deg.get(pc);
       } else if(selected.has(midi)) el.classList.add('on');
     });
-    pianoEl.classList.toggle('frozen', phase !== 'answering');
+    pianoEl.classList.toggle('frozen', phase !== ANSWERING);
     pianoEl.classList.toggle('show-deg', !!(marks && marks.deg));
   }
 
@@ -705,13 +706,13 @@
   }
 
   function updateReadout(){
-    if(phase === 'idle'){ readout.innerHTML = '鍵盤を押すと音を確認できます'; return; }
+    if(phase === IDLE){ readout.innerHTML = '鍵盤を押すと音を確認できます'; return; }
     if(!selected.size){ readout.innerHTML = '選択中: <b>なし</b>'; return; }
     const names = [...selected].sort((a,b)=>a-b).map(noteName);
     readout.innerHTML = '選択中: <b>' + names.join('  ') + '</b>';
   }
 
-  /* ══ Prompt / stats ════════════════════ */
+  /* ══ Prompt ════════════════════════════ */
   function setPrompt(kind, icon, title, sub, hint){
     promptEl.className = 'prompt' + (kind ? ' ' + kind : '');
     pIcon.textContent = icon;
@@ -722,12 +723,16 @@
   }
 
 
+
+  // 完了セットごとに星を1つ。色が成績を表す
+  /* ══ Set progress / stars ══════════════ */
+
   function renderPips(){
     pipsEl.innerHTML = '';
     for(let i = 0; i < SET_SIZE; i++){
       const d = document.createElement('div');
       d.className = 'pip' + (setResults[i] ? ' ' + setResults[i]
-                    : (i === setResults.length && phase === 'answering' ? ' now' : ''));
+                    : (i === setResults.length && phase === ANSWERING ? ' now' : ''));
       pipsEl.appendChild(d);
     }
     setLabel.textContent = 'セット ' + setNo;
@@ -736,7 +741,6 @@
     renderStars();
   }
 
-  // 完了セットごとに星を1つ。色が成績を表す
   const STAR_TIERS = [
     { min:8, cls:'green',  ch:'★', label:'8問以上' },
     { min:5, cls:'yellow', ch:'★', label:'5〜7問' },
@@ -744,7 +748,31 @@
   ];
   function starFor(ok){ return STAR_TIERS.find(t => ok >= t.min); }
 
+  function renderStars(){
+    starsEl.innerHTML = '';
+    // 現在のセットぶんは、次のセットに進んでから星をつける
+    // （10問目を答えた画面で「セット1」と星が同時に出るのを防ぐ）
+    const done = S.history.slice(0, setNo - 1);
+    if(!done.length){
+      const hint = document.createElement('span');
+      hint.className = 'star-hint';
+      hint.textContent = '10問ごとに星がつきます';
+      starsEl.appendChild(hint);
+      return;
+    }
+    done.forEach((ok, i) => {
+      const tier = starFor(ok);
+      const el = document.createElement('span');
+      el.className = 'star ' + tier.cls + (ok === SET_SIZE ? ' perfect' : '');
+      el.textContent = tier.ch;
+      el.title = 'セット ' + (i + 1) + ': ' + ok + '/' + SET_SIZE;
+      starsEl.appendChild(el);
+    });
+  }
+
   // 習熟度＝ベータ分布の事後平均。直近を重視しつつ試行回数も反映する。
+  /* ══ Mastery ═══════════════════════════ */
+
   function masteryOf(r){ return r.v / 100; }
   // 100%までに必要な連続正解数
   function toGo(r){ return Math.ceil((100 - r.v) / GAIN); }
@@ -808,6 +836,8 @@
   }
 
   // 選択中の和音すべてが100%になったら1度だけ祝う
+  /* ══ Celebration ═══════════════════════ */
+
   let cheered = false;
 
   // 終えたセット数だけ星を並べる。8を超えたら星1つ＋数字に切り替える
@@ -846,35 +876,14 @@
     }
   }
 
-  function renderStars(){
-    starsEl.innerHTML = '';
-    // 現在のセットぶんは、次のセットに進んでから星をつける
-    // （10問目を答えた画面で「セット1」と星が同時に出るのを防ぐ）
-    const done = S.history.slice(0, setNo - 1);
-    if(!done.length){
-      const hint = document.createElement('span');
-      hint.className = 'star-hint';
-      hint.textContent = '10問ごとに星がつきます';
-      starsEl.appendChild(hint);
-      return;
-    }
-    done.forEach((ok, i) => {
-      const tier = starFor(ok);
-      const el = document.createElement('span');
-      el.className = 'star ' + tier.cls + (ok === SET_SIZE ? ' perfect' : '');
-      el.textContent = tier.ch;
-      el.title = 'セット ' + (i + 1) + ': ' + ok + '/' + SET_SIZE;
-      starsEl.appendChild(el);
-    });
-  }
 
-  const INV_NAME = ['', '第1転回', '第2転回', '第3転回'];
+  /* ══ Naming / spelling ═════════════════ */
+
   const chordLabel = q => {
     if(q.mode.iv.length === 1) return NOTES[q.root] + '（単音）';
     const nm = NOTES[q.root] + (q.mode.id === 'major' ? '' : q.mode.sym);
     return q.inv ? nm + '（' + INV_NAME[q.inv] + '）' : nm;
   };
-  const IV_NAME = ['P1','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'];
   // 実際に鳴った順（低い音から）
   function voicingSpell(q){
     const sorted = q.midis.slice().sort((a,b) => a - b);
@@ -932,7 +941,7 @@
 
   function startTimer(){
     const secs = limitSeconds();
-    if(!secs || phase !== 'answering'){ stopTimer(); return; }
+    if(!secs || phase !== ANSWERING){ stopTimer(); return; }
     tTotal = secs * 1000;
     tEnd = performance.now() + tTotal;
     timerEl.hidden = false;
@@ -950,19 +959,15 @@
     cancelAnimationFrame(tRAF); tRAF = 0;
     tPausedAt = tEnd - performance.now();
     setTimeout(() => {
-      if(phase !== 'answering') return;
+      if(phase !== ANSWERING) return;
       tEnd = performance.now() + tPausedAt;
       tRAF = requestAnimationFrame(tick);
     }, ms);
   }
 
   function timeUp(){
-    if(phase !== 'answering' || !question) return;
-    const right = new Set(question.midis.map(m => m % 12));
-    phase = 'resolved';
-    finishRound(false, false);
-    paintKeys({ right, deg: degreeMap(question) });
-    cue(false);
+    if(phase !== ANSWERING || !question) return;
+    resolveRound({ isRight:false, revealed:false });
     setPrompt('wrong','⏱','時間切れ — 正解は ' + chordLabel(question),
               voicingSpell(question), setEndMessage());
     syncButtons();
@@ -986,66 +991,16 @@
 
   // Leitner式: 間違えた課題は間隔を空けて再出題し、正解するたび間隔を伸ばす
   // due は前回セッションの通し番号基準なので、読み込み時に 0 起点へ詰め直す
-  // 復習キュー: 間違えた課題を間隔を空けて再出題する（Leitner方式）。
-  // due は「解いた問題数」を時計にした期限。box が上がるほど間隔が伸び、
-  // GRADUATE 回連続で正解したらキューから外れる。
-  const REVIEW_GAPS = [0, 2, 5, 9, 14];   // box -> 次に出すまでの間隔
-  const GRADUATE = 4;
-  let solved = 0;                          // 出題した問題数（due の基準）
-
-  // 保存された due は前回セッションの基準なので、0起点へ詰め直す
-  (function rebaseDue(){
-    if(!reviewQueue.length) return;
-    const min = Math.min(...reviewQueue.map(t => t.due));
-    reviewQueue.forEach(t => { t.due = Math.max(0, t.due - min); });
-  })();
-
-  function dueReview(){
-    return reviewQueue.findIndex(t => t.due <= solved && active.has(t.modeId));
-  }
-
-  function scheduleReview(key, ok){
-    const i = reviewQueue.findIndex(t => t.key === key);
-
-    if(!ok){
-      if(i >= 0){
-        reviewQueue[i].box = 1;
-        reviewQueue[i].due = solved + REVIEW_GAPS[1];
-      } else {
-        const [modeId, root, inv] = key.split(':');
-        reviewQueue.push({
-          key, modeId, root: +root, inv: +inv,
-          box: 1, due: solved + REVIEW_GAPS[1]
-        });
-        if(reviewQueue.length > MAX_REVIEW) reviewQueue.shift();
-      }
-    } else if(i >= 0){
-      const t = reviewQueue[i];
-      t.box++;
-      if(t.box > GRADUATE) reviewQueue.splice(i, 1);
-      else t.due = solved + REVIEW_GAPS[t.box];
-    }
-
-    S.review = reviewQueue;
-  }
-
   function pickTask(){
     const pool = MODES.filter(m => active.has(m.id));
     if(!pool.length) return null;
-
-    const idx = dueReview();
-    if(idx >= 0){
-      const t = reviewQueue[idx];
-      return { mode: MODE_BY_ID[t.modeId], root: t.root, inv: t.inv, review: true };
-    }
     const mode = pool[Math.floor(Math.random() * pool.length)];
     // 転回形は常に自然に混ぜる
     const maxInv = mode.iv.length > 1 ? mode.iv.length - 1 : 0;
     return {
       mode,
       root: Math.floor(Math.random() * 12),
-      inv: maxInv ? Math.floor(Math.random() * (maxInv + 1)) : 0,
-      review: false
+      inv: maxInv ? Math.floor(Math.random() * (maxInv + 1)) : 0
     };
   }
 
@@ -1059,20 +1014,20 @@
     const base = rootMidiFor(bassPc, Math.max(...iv));
     question = {
       mode: task.mode, root: task.root, inv: task.inv || 0,
-      midis: iv.map(x => base + x), review: task.review,
+      midis: iv.map(x => base + x),
       key: task.mode.id + ':' + task.root + ':' + (task.inv || 0)
     };
 
-    phase = 'answering';
+    phase = ANSWERING;
     selected.clear();
     paintKeys(); updateReadout();
     setPrompt('', '♪', '鳴った音を鍵盤から選んでください',
       '選び終えたら「回答する」を押します',
-      task.review ? '↻ 復習問題' : null);
+      null);
     renderPips(); syncButtons();
     playChord(question.midis);
     stopTimer();
-    if(limitSeconds()) setTimeout(() => { if(phase === 'answering') startTimer(); }, CHORD_MS);
+    if(limitSeconds()) setTimeout(() => { if(phase === ANSWERING) startTimer(); }, CHORD_MS);
   }
 
   function startNewSet(){
@@ -1094,10 +1049,7 @@
   }
 
   function finishRound(isRight, revealed){
-    solved++;
-    // 「答えを見る」は採点しない（習熟度・セット進捗・お祝いに影響させない）。
-    // ただし復習キューには積む＝あとでもう一度出題される。
-    scheduleReview(question.key, revealed ? false : isRight);
+    // 「答えを見る」は採点しない（習熟度・セット進捗・お祝いに影響させない）
     if(revealed){
       save();
       return;
@@ -1131,17 +1083,22 @@
     return base + ' ／ 累計 ' + total + '問正解';
   }
 
+  // 3つの終わり方（回答・答えを見る・時間切れ）で共通の後処理
+  function resolveRound({ isRight, revealed }){
+    phase = RESOLVED;
+    stopTimer();
+    finishRound(isRight, revealed);
+    paintKeys({ right: pitchClasses(question), deg: degreeMap(question) });
+    if(!revealed) cue(isRight);
+  }
+
   function submit(){
-    if(phase !== 'answering' || !question || !selected.size) return;
-    const right = new Set(question.midis.map(m => m % 12));
+    if(phase !== ANSWERING || !question || !selected.size) return;
+    const right = pitchClasses(question);
     const given = new Set([...selected].map(m => m % 12));
     const isRight = given.size === right.size && [...right].every(pc => given.has(pc));
 
-    phase = 'resolved';
-    stopTimer();
-    finishRound(isRight, false);
-    paintKeys({ right, deg: degreeMap(question) });
-    cue(isRight);
+    resolveRound({ isRight, revealed:false });
 
     const setMsg = setEndMessage();
     if(isRight){
@@ -1154,29 +1111,25 @@
   }
 
   function reveal(){
-    if(phase !== 'answering' || !question) return;
-    const right = new Set(question.midis.map(m => m % 12));
-    phase = 'resolved';
-    stopTimer();
-    finishRound(false, true);
-    paintKeys({ right, deg: degreeMap(question) });
+    if(phase !== ANSWERING || !question) return;
+    resolveRound({ isRight:false, revealed:true });
     setPrompt('info','♪', chordLabel(question), voicingSpell(question), setEndMessage());
     syncButtons();
   }
 
   function clearSelection(){
-    if(phase === 'resolved' || !selected.size) return;
+    if(phase === RESOLVED || !selected.size) return;
     selected.clear(); paintKeys(); updateReadout(); syncButtons();
   }
 
   /* ══ Buttons ═══════════════════════════ */
   function syncButtons(){
-    if(phase === 'idle'){
+    if(phase === IDLE){
       mainBtn.textContent = 'スタート ▶';
       mainBtn.disabled = false;
       replayBtn.disabled = true;
       revealBtn.hidden = true;
-    } else if(phase === 'answering'){
+    } else if(phase === ANSWERING){
       mainBtn.textContent = '回答する ✓';
       mainBtn.disabled = !selected.size;
       replayBtn.disabled = false;
@@ -1239,7 +1192,7 @@
     btn.addEventListener('click', () => {
       S.limit = btn.dataset.limit;
       save(); applyLimit();
-      if(phase === 'answering'){
+      if(phase === ANSWERING){
         limitSeconds() ? startTimer() : stopTimer();
       }
     });
@@ -1257,9 +1210,8 @@
 
   resetBtn.addEventListener('click', () => {
     if(!confirm('記録をすべて消去します。よろしいですか？')) return;
-    reviewQueue.length = 0; S.review = reviewQueue;
     S.history = []; S.mastery = {};
-    setResults = []; setNo = 1; solved = 0; setsToday = 0;
+    setResults = []; setNo = 1; setsToday = 0;
     save(); renderPips(); renderMastery();
   });
 
@@ -1268,7 +1220,7 @@
   // 連打で問題を飛ばさないよう短い無効時間を置く
   let advanceLockUntil = 0;
   mainBtn.addEventListener('click', () => {
-    if(phase === 'answering'){
+    if(phase === ANSWERING){
       submit();
       advanceLockUntil = performance.now() + ADVANCE_LOCK_MS;
       return;
